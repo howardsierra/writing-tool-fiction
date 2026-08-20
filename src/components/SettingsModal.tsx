@@ -38,8 +38,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           const data = await res.json();
           if (isMounted && data.models && data.models.length > 0) {
             setDynamicModels(data.models);
-            // Auto-select first model if current isn't in list and we don't have one
-            if (!aiConfig.model || !data.models.includes(aiConfig.model)) {
+            // Auto-select first model if we don't have one
+            if (!aiConfig.model) {
               setAIConfig({ ...aiConfig, model: data.models[0] });
             }
           } else if (isMounted) {
@@ -211,12 +211,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
             {aiConfig.provider !== 'custom' && (
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase tracking-widest text-gray-500">API Key (Optional / Override)</label>
+                <label className="text-[10px] uppercase tracking-widest text-gray-500">API Key</label>
                 <input 
                   type="password" 
                   value={aiConfig.apiKeys?.[aiConfig.provider] || ''}
                   onChange={(e) => setAIConfig({ ...aiConfig, apiKeys: { ...aiConfig.apiKeys, [aiConfig.provider]: e.target.value } })}
-                  placeholder={`Enter custom ${selectedProvider?.name} API key`}
+                  placeholder={`Enter your ${selectedProvider?.name} API key`}
                   className="w-full bg-[#1A1D26] border border-[#2D3139] rounded px-3 py-2 text-sm text-gray-200 outline-none focus:border-[#D4AF37] transition-all"
                 />
               </div>
@@ -228,25 +228,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 {isLoadingModels && <RefreshCw className="w-3 h-3 text-[#D4AF37] animate-spin" />}
               </div>
               
-              {dynamicModels.length > 0 || !['custom'].includes(aiConfig.provider) ? (
-                <select 
-                  value={aiConfig.model} 
+              <div className="relative w-full">
+                <input 
+                  type="text" 
+                  list="model-options"
+                  value={aiConfig.model || ''}
                   onChange={(e) => setAIConfig({ ...aiConfig, model: e.target.value })}
+                  placeholder="Type or select a model..."
                   className="w-full bg-[#1A1D26] border border-[#2D3139] rounded px-3 py-2 text-sm text-gray-200 outline-none focus:border-[#D4AF37] transition-all"
-                >
+                />
+                <datalist id="model-options">
                   {availableModels.map(m => (
                     <option key={m} value={m}>{m}</option>
                   ))}
-                </select>
-              ) : (
-                <input 
-                  type="text" 
-                  value={aiConfig.model || ''}
-                  onChange={(e) => setAIConfig({ ...aiConfig, model: e.target.value })}
-                  placeholder="e.g., meta-llama-3"
-                  className="w-full bg-[#1A1D26] border border-[#2D3139] rounded px-3 py-2 text-sm text-gray-200 outline-none focus:border-[#D4AF37] transition-all"
-                />
-              )}
+                </datalist>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -293,7 +289,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="text-[10px] text-gray-400 bg-[#1A1D26] p-3 rounded border border-[#2D3139] mt-2">
-            Note: For 3rd-party providers (OpenAI, Anthropic, NanoBanana, etc.), ensure the corresponding API key is configured in the server's environment variables. Dynamic models for OpenAI/OpenRouter fetch automatically if keys are set.
+            Note: Your API key is stored locally in your browser and sent securely to the backend for generation. It is not saved on the server.
           </div>
         </div>
       </div>

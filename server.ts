@@ -70,7 +70,7 @@ app.post("/api/generate", async (req, res) => {
       }
 
       if (!apiKey) {
-        return res.status(400).json({ error: `API key for ${provider} is not configured.` });
+        return res.status(400).json({ error: `API key for ${provider} is missing. Please configure it in Settings.` });
       }
 
       const openai = new OpenAI({ apiKey, baseURL });
@@ -104,7 +104,7 @@ app.post("/api/generate-image", async (req, res) => {
     if (provider === "nanobanana" || provider === "nanobanana2") {
       const apiKey = customApiKey || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return res.status(400).json({ error: "Gemini API key is not configured for NanoBanana." });
+        return res.status(400).json({ error: "Gemini API key is missing. Please configure it in Settings.." });
       }
 
       let finalPrompt = prompt;
@@ -159,7 +159,7 @@ app.post("/api/generate-image", async (req, res) => {
     } else if (provider === "openrouter" || provider === "nanogpt") {
       const apiKey = customApiKey || (provider === "openrouter" ? process.env.OPENROUTER_API_KEY : process.env.NANOGPT_API_KEY);
       if (!apiKey) {
-        return res.status(400).json({ error: `API key for ${provider} is not configured.` });
+        return res.status(400).json({ error: `API key for ${provider} is missing. Please configure it in Settings.` });
       }
       const baseURL = provider === "openrouter" ? "https://openrouter.ai/api/v1" : "https://nano-gpt.com/api/v1";
       
