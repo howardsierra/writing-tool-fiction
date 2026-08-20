@@ -1,0 +1,6 @@
+{
+  "name": "AI Manuscript Editor",
+  "description": "A sophisticated text editor with integrated AI assistance, multi-model support, image generation, and version history for writers and creators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

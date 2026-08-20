@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    
+    function isValidProject(data) {
+      return data.keys().hasAll(['userId', 'title', 'createdAt', 'updatedAt']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 100 &&
+             (!('customAuthors' in data) || (data.customAuthors is list && data.customAuthors.size() <= 10 && (data.customAuthors.size() == 0 || (data.customAuthors[0] is string && data.customAuthors[0].size() <= 50)))) &&
+             data.createdAt == request.time &&
+             data.updatedAt == request.time;
+    }
+
+    function isValidProjectUpdate(data, diff) {
+      return diff.affectedKeys().hasOnly(['title', 'customAuthors', 'updatedAt']) &&
+             (!('title' in diff.affectedKeys()) || (data.title is string && data.title.size() <= 100)) &&
+             (!('customAuthors' in diff.affectedKeys()) || (data.customAuthors is list && data.customAuthors.size() <= 10 && (data.customAuthors.size() == 0 || (data.customAuthors[0] is string && data.customAuthors[0].size() <= 50)))) &&
+             data.userId == existing().userId &&
+             data.createdAt == existing().createdAt &&
+             data.updatedAt == request.time;
+    }
+
+    function isValidDocument(data) {
+      return data.keys().hasAll(['projectId', 'userId', 'title', 'content', 'type', 'tags', 'createdAt', 'updatedAt']) &&
+             data.projectId is string && data.projectId.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 100000 &&
+             data.type in ['chapter', 'scene', 'character', 'lore', 'notes'] &&
+             data.tags is list && data.tags.size() <= 20 &&
+             (data.tags.size() == 0 || (data.tags[0] is string && data.tags[0].size() <= 50)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2000)) &&
+             data.createdAt == request.time &&
+             data.updatedAt == request.time;
+    }
+
+    function isValidDocumentUpdate(data, diff) {
+      return diff.affectedKeys().hasOnly(['title', 'content', 'type', 'tags', 'imageUrl', 'updatedAt']) &&
+             (!('title' in diff.affectedKeys()) || (data.title is string && data.title.size() <= 200)) &&
+             (!('content' in diff.affectedKeys()) || (data.content is string && data.content.size() <= 100000)) &&
+             (!('type' in diff.affectedKeys()) || (data.type in ['chapter', 'scene', 'character', 'lore', 'notes'])) &&
+             (!('tags' in diff.affectedKeys()) || (data.tags is list && data.tags.size() <= 20 && (data.tags.size() == 0 || (data.tags[0] is string && data.tags[0].size() <= 50)))) &&
+             (!('imageUrl' in diff.affectedKeys()) || (data.imageUrl is string && data.imageUrl.size() <= 2000)) &&
+             data.projectId == existing().projectId &&
+             data.userId == existing().userId &&
+             data.createdAt == existing().createdAt &&
+             data.updatedAt == request.time;
+    }
+
+    match /projects/{projectId} {
+      allow get: if isSignedIn() && isValidId(projectId) && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(projectId) && isValidProject(incoming());
+      allow update: if isSignedIn() && isValidId(projectId) && existing().userId == request.auth.uid && isValidProjectUpdate(incoming(), incoming().diff(existing()));
+      allow delete: if isSignedIn() && isValidId(projectId) && existing().userId == request.auth.uid;
+    }
+
+    match /documents/{documentId} {
+      allow get: if isSignedIn() && isValidId(documentId) && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // To strictly enforce relation to project, we should check if the project belongs to the user
+      allow create: if isSignedIn() && isValidId(documentId) && isValidDocument(incoming()) && 
+                    exists(/databases/$(database)/documents/projects/$(incoming().projectId)) &&
+                    get(/databases/$(database)/documents/projects/$(incoming().projectId)).data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(documentId) && existing().userId == request.auth.uid && isValidDocumentUpdate(incoming(), incoming().diff(existing()));
+      allow delete: if isSignedIn() && isValidId(documentId) && existing().userId == request.auth.uid;
+    }
+  }
+}
