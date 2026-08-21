@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
-import { FileText, Users, BookOpen, File, Plus, Settings, Sun, Moon, ChevronDown, Tag, Upload, Brain, Scissors, Download } from 'lucide-react';
+import { FileText, Users, BookOpen, File, Plus, Settings, Sun, Moon, ChevronDown, Tag, Upload, Brain, Scissors, Download, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ProjectSettingsModal } from './ProjectSettingsModal';
@@ -8,7 +8,7 @@ import { lazy, Suspense } from 'react';
 
 const ExportModal = lazy(() => import('./ExportModal').then(module => ({ default: module.ExportModal })));
 
-export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function Sidebar({ onOpenSettings, onCloseSidebar }: { onOpenSettings: () => void, onCloseSidebar?: () => void }) {
   const { 
     projects, activeProjectId, setActiveProjectId, createProject,
     documents, activeDocumentId, setActiveDocumentId, createDocument,
@@ -61,8 +61,16 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   };
 
   return (
-    <div className="w-64 flex-shrink-0 border-r border-[#2D3139] bg-[#0F1218] flex flex-col h-full transition-colors duration-200">
-      <div className="p-4 flex flex-col gap-4">
+    <div className="w-72 md:w-64 flex-shrink-0 border-r border-[#2D3139] bg-[#0F1218] flex flex-col h-full transition-colors duration-200 relative">
+      {onCloseSidebar && (
+        <button 
+          onClick={onCloseSidebar}
+          className="md:hidden absolute top-4 right-4 p-2 text-gray-500 hover:text-white bg-[#1A1D26] rounded-full z-10"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+      <div className="p-4 flex flex-col gap-4 pt-14 md:pt-4">
         {/* Project Selector */}
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">

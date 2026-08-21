@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useStore } from '../hooks/useStore';
-import { Tag, Save, Maximize2, Minimize2, Trash2, Image as ImageIcon, Loader2, Clock, Activity, Scissors, Search, ChevronUp, ChevronDown, X, Sparkles } from 'lucide-react';
+import { Tag, Save, Maximize2, Minimize2, Trash2, Image as ImageIcon, Loader2, Clock, Activity, Scissors, Search, ChevronUp, ChevronDown, X, Sparkles, Menu } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
-import { Send, GitMerge } from 'lucide-react';
+import { Send, GitMerge, Eye, Edit3 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 import { ImageGenerationModal } from './ImageGenerationModal';
 import { VersionHistoryModal } from './VersionHistoryModal';
 import { calculateFleschKincaid } from '../utils/readability';
@@ -10,13 +13,14 @@ import { calculateFleschKincaid } from '../utils/readability';
 const LoreExtractionModal = lazy(() => import('./LoreExtractionModal').then(module => ({ default: module.LoreExtractionModal })));
 const MergeDocumentModal = lazy(() => import('./MergeDocumentModal').then(module => ({ default: module.MergeDocumentModal })));
 
-export function Editor() {
+export function Editor({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
   const { documents, activeDocumentId, updateDocument, deleteDocument, createDocument, aiConfig } = useStore();
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [readability, setReadability] = useState({ score: 0, label: '' });
   const [showImageModal, setShowImageModal] = useState(false);
@@ -293,7 +297,15 @@ export function Editor() {
 
   if (!activeDoc) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-[#0A0C10] text-[#E0E0E0] p-8">
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#0A0C10] text-[#E0E0E0] p-4 md:p-8 relative">
+        {onOpenSidebar && (
+           <button 
+             onClick={onOpenSidebar}
+             className="absolute top-4 left-4 p-2 text-gray-400 hover:text-white md:hidden"
+           >
+             <Menu className="w-6 h-6" />
+           </button>
+        )}
         <div className="max-w-md text-center space-y-6">
           <div className="w-16 h-16 bg-[#1A1D26] rounded-full flex items-center justify-center mx-auto border border-[#2D3139]">
             <Sparkles className="w-6 h-6 text-[#D4AF37]" />
@@ -330,18 +342,28 @@ export function Editor() {
     )}>
       {/* Editor Header */}
       <div className={twMerge(
-        "flex-shrink-0 flex flex-col gap-2 p-6 pb-2 border-b border-transparent transition-opacity duration-300",
+        "flex-shrink-0 flex flex-col gap-2 p-4 md:p-6 pb-2 border-b border-transparent transition-opacity duration-300 relative z-10",
         isFocusMode ? "opacity-0 hover:opacity-100 absolute top-0 left-0 right-0 bg-[#0A0C10]/90 backdrop-blur" : "opacity-100"
       )}>
-        <div className="flex items-start justify-between">
-          <input
-            type="text"
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-2 flex-1">
+            {onOpenSidebar && !isFocusMode && (
+              <button 
+                onClick={onOpenSidebar}
+                className="p-2 -ml-2 text-gray-400 hover:text-white md:hidden flex-shrink-0"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+            <input
+              type="text"
             value={title}
             onChange={handleTitleChange}
-            className="text-4xl font-serif italic text-white font-light bg-transparent border-none outline-none placeholder-[#2D3139] w-full max-w-2xl"
-            placeholder="Document Title"
-          />
-          <div className="flex items-center gap-2">
+            className="text-2xl md:text-4xl font-serif italic text-white font-light bg-transparent border-none outline-none placeholder-[#2D3139] w-full max-w-2xl min-w-0"
+              placeholder="Document Title"
+            />
+          </div>
+          <div className="flex items-center gap-1 md:gap-2 overflow-x-auto custom-scrollbar pb-1 flex-shrink-0">
             {supportsImage && (
               <button 
                 onClick={() => setShowImageModal(true)}
@@ -382,6 +404,13 @@ export function Editor() {
               title="Find and Replace"
             >
               <Search className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setIsPreviewMode(!isPreviewMode)}
+              className="p-2 text-gray-400 hover:text-[#D4AF37] transition-colors rounded-md"
+              title={isPreviewMode ? "Edit Mode" : "Preview Mode"}
+            >
+              {isPreviewMode ? <Edit3 className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
             <button 
               onClick={() => setIsFocusMode(!isFocusMode)}
@@ -477,7 +506,7 @@ export function Editor() {
 
       {/* Editor Body */}
       <div className="flex-1 overflow-y-auto flex justify-center pb-24 relative custom-scrollbar">
-        <div className="w-full max-w-2xl px-12 py-8 flex flex-col gap-6">
+        <div className="w-full max-w-2xl px-4 sm:px-6 md:px-12 py-4 md:py-8 flex flex-col gap-6">
           {activeDoc.imageUrl && (
             <div className="w-full relative group rounded-lg overflow-hidden border border-[#2D3139] bg-[#11141B]">
               <img src={activeDoc.imageUrl} alt={activeDoc.title} className="w-full h-auto object-cover max-h-[400px]" referrerPolicy="no-referrer" />
@@ -489,18 +518,29 @@ export function Editor() {
               </button>
             </div>
           )}
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={handleContentChange}
-            placeholder="Start writing..."
-            className="w-full h-[500px] min-h-full bg-transparent border-none outline-none resize-none text-lg leading-relaxed font-serif text-gray-300 placeholder-[#2D3139]"
-          />
+          {isPreviewMode ? (
+            <div className="w-full h-[500px] min-h-full font-serif text-gray-300 prose prose-invert prose-lg max-w-none prose-p:leading-relaxed prose-headings:text-gray-200 prose-a:text-[#D4AF37] hover:prose-a:text-[#E5C35D]">
+              <ReactMarkdown 
+                rehypePlugins={[rehypeRaw]} 
+                remarkPlugins={[remarkGfm]}
+              >
+                {content}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={handleContentChange}
+              placeholder="Start writing..."
+              className="w-full h-[500px] min-h-full bg-transparent border-none outline-none resize-none text-lg leading-relaxed font-serif text-gray-300 placeholder-[#2D3139]"
+            />
+          )}
         </div>
       </div>
 
       {/* Floating AI Prompt Bar */}
-      <div className="absolute bottom-6 left-0 right-0 flex justify-center pointer-events-none px-4 z-20">
+      <div className="absolute bottom-4 md:bottom-6 left-0 right-0 flex justify-center pointer-events-none px-2 md:px-4 z-20">
         <form 
           onSubmit={handleAiSubmit} 
           className="w-full max-w-2xl bg-[#1A1D26]/90 backdrop-blur-md border border-[#2D3139] rounded-2xl shadow-2xl p-2 flex items-end gap-2 pointer-events-auto transition-all focus-within:border-[#D4AF37]/50 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.1)]"

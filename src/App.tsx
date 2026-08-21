@@ -4,6 +4,7 @@
  */
 
 import { useState, lazy, Suspense } from 'react';
+import { twMerge } from 'tailwind-merge';
 import { StoreProvider, useStore } from './hooks/useStore';
 import { Sidebar } from './components/Sidebar';
 import { signInWithGoogle } from './firebase';
@@ -13,6 +14,7 @@ const SettingsModal = lazy(() => import('./components/SettingsModal').then(modul
 
 function AppContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { user, authLoading } = useStore();
 
   if (authLoading) {
@@ -41,10 +43,23 @@ function AppContent() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#0A0C10] text-[#E0E0E0] font-sans overflow-hidden">
-      <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
-      <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[#D4AF37] text-xs tracking-widest animate-pulse">Loading Editor...</div>}>
-        <Editor />
+    <div className="flex h-screen w-full bg-[#0A0C10] text-[#E0E0E0] font-sans overflow-hidden relative">
+      <div className={twMerge(
+        "fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 md:relative md:translate-x-0 h-full",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <Sidebar onOpenSettings={() => { setIsSettingsOpen(true); setIsSidebarOpen(false); }} onCloseSidebar={() => setIsSidebarOpen(false)} />
+      </div>
+      
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden" 
+          onClick={() => setIsSidebarOpen(false)} 
+        />
+      )}
+
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[#D4AF37] text-xs tracking-widest animate-pulse min-w-0">Loading Editor...</div>}>
+        <Editor onOpenSidebar={() => setIsSidebarOpen(true)} />
       </Suspense>
       
       {isSettingsOpen && (
