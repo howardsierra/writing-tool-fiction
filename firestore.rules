@@ -18,7 +18,7 @@ service cloud.firestore {
       return data.keys().hasAll(['userId', 'title', 'createdAt', 'updatedAt']) &&
              data.userId == request.auth.uid &&
              data.title is string && data.title.size() <= 100 &&
-             (!('customAuthors' in data) || (data.customAuthors is list && data.customAuthors.size() <= 10 && (data.customAuthors.size() == 0 || (data.customAuthors[0] is string && data.customAuthors[0].size() <= 50)))) &&
+             (!('customAuthors' in data) || (data.customAuthors is list && data.customAuthors.size() <= 100 && (data.customAuthors.size() == 0 || (data.customAuthors[0] is string && data.customAuthors[0].size() <= 50)))) &&
              data.createdAt == request.time &&
              data.updatedAt == request.time;
     }
@@ -26,7 +26,7 @@ service cloud.firestore {
     function isValidProjectUpdate(data, diff) {
       return diff.affectedKeys().hasOnly(['title', 'customAuthors', 'updatedAt']) &&
              (!('title' in diff.affectedKeys()) || (data.title is string && data.title.size() <= 100)) &&
-             (!('customAuthors' in diff.affectedKeys()) || (data.customAuthors is list && data.customAuthors.size() <= 10 && (data.customAuthors.size() == 0 || (data.customAuthors[0] is string && data.customAuthors[0].size() <= 50)))) &&
+             (!('customAuthors' in diff.affectedKeys()) || (data.customAuthors is list && data.customAuthors.size() <= 100 && (data.customAuthors.size() == 0 || (data.customAuthors[0] is string && data.customAuthors[0].size() <= 50)))) &&
              data.userId == existing().userId &&
              data.createdAt == existing().createdAt &&
              data.updatedAt == request.time;
