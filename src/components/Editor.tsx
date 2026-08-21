@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useStore } from '../hooks/useStore';
 import { Tag, Save, Maximize2, Minimize2, Trash2, Image as ImageIcon, Loader2, Clock, Activity, Scissors, Search, ChevronUp, ChevronDown, X, Sparkles } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
-import { Send } from 'lucide-react';
+import { Send, GitMerge } from 'lucide-react';
 import { ImageGenerationModal } from './ImageGenerationModal';
 import { VersionHistoryModal } from './VersionHistoryModal';
 import { calculateFleschKincaid } from '../utils/readability';
 
 const LoreExtractionModal = lazy(() => import('./LoreExtractionModal').then(module => ({ default: module.LoreExtractionModal })));
+const MergeDocumentModal = lazy(() => import('./MergeDocumentModal').then(module => ({ default: module.MergeDocumentModal })));
 
 export function Editor() {
   const { documents, activeDocumentId, updateDocument, deleteDocument, createDocument, aiConfig } = useStore();
@@ -21,6 +22,7 @@ export function Editor() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showExtractModal, setShowExtractModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
 
   // Search & Replace state
   const [showSearch, setShowSearch] = useState(false);
@@ -388,6 +390,13 @@ export function Editor() {
             >
               {isFocusMode ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
             </button>
+            <button
+              onClick={() => setShowMergeModal(true)}
+              className="p-2 text-gray-400 hover:text-[#D4AF37] transition-colors rounded-md"
+              title="Merge with another document"
+            >
+              <GitMerge className="w-5 h-5" />
+            </button>
             <button 
               onClick={() => {
                 if(confirm('Are you sure you want to delete this document?')) {
@@ -568,6 +577,14 @@ export function Editor() {
           <LoreExtractionModal
             document={activeDoc}
             onClose={() => setShowExtractModal(false)}
+          />
+        </Suspense>
+      )}
+      {showMergeModal && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />}>
+          <MergeDocumentModal
+            document={activeDoc}
+            onClose={() => setShowMergeModal(false)}
           />
         </Suspense>
       )}
