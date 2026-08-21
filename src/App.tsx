@@ -9,7 +9,6 @@ import { Sidebar } from './components/Sidebar';
 import { signInWithGoogle } from './firebase';
 
 const Editor = lazy(() => import('./components/Editor').then(module => ({ default: module.Editor })));
-const AIChat = lazy(() => import('./components/AIChat').then(module => ({ default: module.AIChat })));
 const SettingsModal = lazy(() => import('./components/SettingsModal').then(module => ({ default: module.SettingsModal })));
 
 function AppContent() {
@@ -46,9 +45,6 @@ function AppContent() {
       <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
       <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[#D4AF37] text-xs tracking-widest animate-pulse">Loading Editor...</div>}>
         <Editor />
-      </Suspense>
-      <Suspense fallback={<div className="w-[400px] border-l border-[#2D3139] flex items-center justify-center text-[#D4AF37] text-xs tracking-widest animate-pulse">Loading AI...</div>}>
-        <AIChat />
       </Suspense>
       
       {isSettingsOpen && (

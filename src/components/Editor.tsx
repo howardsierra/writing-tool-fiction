@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useStore } from '../hooks/useStore';
 import { Tag, Save, Maximize2, Minimize2, Trash2, Image as ImageIcon, Loader2, Clock, Activity, Scissors, Search, ChevronUp, ChevronDown, X, Sparkles } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
+import { Send } from 'lucide-react';
 import { ImageGenerationModal } from './ImageGenerationModal';
 import { VersionHistoryModal } from './VersionHistoryModal';
 import { calculateFleschKincaid } from '../utils/readability';
@@ -23,6 +24,10 @@ export function Editor() {
 
   // Search & Replace state
   const [showSearch, setShowSearch] = useState(false);
+  const [aiInput, setAiInput] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const { projects, activeProjectId } = useStore();
+  const activeProject = projects.find(p => p.id === activeProjectId);
   const [searchQuery, setSearchQuery] = useState('');
   const [replaceQuery, setReplaceQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{start: number, end: number}[]>([]);
@@ -31,6 +36,7 @@ export function Editor() {
   const activeDoc = documents.find(d => d.id === activeDocumentId);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastSavedContentRef = useRef<string>(activeDoc?.content || '');
 
   // Update search results when content or query changes
   useEffect(() => {
@@ -69,14 +75,25 @@ export function Editor() {
       setTitle(activeDoc.title);
       setTags(activeDoc.tags || []);
       updateWordCount(activeDoc.content);
+      lastSavedContentRef.current = activeDoc.content;
     } else {
       setContent('');
       setTitle('');
       setTags([]);
       setWordCount(0);
       setReadability({ score: 0, label: '' });
+      lastSavedContentRef.current = '';
     }
   }, [activeDocumentId]);
+
+  // Sync external changes (e.g. from AI Chat)
+  useEffect(() => {
+    if (activeDoc && activeDoc.content !== lastSavedContentRef.current) {
+      setContent(activeDoc.content);
+      updateWordCount(activeDoc.content);
+      lastSavedContentRef.current = activeDoc.content;
+    }
+  }, [activeDoc?.content]);
 
   const updateWordCount = (text: string) => {
     const words = text.trim().split(/\s+/);
@@ -91,7 +108,10 @@ export function Editor() {
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      if (activeDoc) updateDocument(activeDoc.id, { content: newContent });
+      if (activeDoc) {
+        lastSavedContentRef.current = newContent;
+        updateDocument(activeDoc.id, { content: newContent });
+      }
     }, 1000);
   };
 
@@ -159,6 +179,87 @@ export function Editor() {
     const snippetTitle = `${title} Snippet - ${new Date().toLocaleTimeString()}`;
     await createDocument(snippetTitle, 'snippet', selectedText);
     alert('Snippet saved to your workspace!');
+  };
+
+
+  const handleAiSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiInput.trim() || isAiLoading || !activeDoc) return;
+
+    const userMessage = aiInput.trim();
+    setAiInput('');
+    setIsAiLoading(true);
+
+    try {
+      let systemPrompt = `You are an expert creative writing assistant, novel planner, and co-writer. Your goal is to help the user brainstorm, write, and refine their novel. `;
+      
+      if (activeProject?.customAuthors && activeProject.customAuthors.length > 0) {
+        systemPrompt += `\nCRITICAL: Influence the writing style and prose by studying these authors: ${activeProject.customAuthors.join(', ')}. `;
+      }
+      
+      if (aiConfig.customPrompt) {
+        systemPrompt += `\nUser Custom Instructions: ${aiConfig.customPrompt}. `;
+      }
+      
+      systemPrompt += `\n\nThe user is currently working on a ${activeDoc.type} titled "${activeDoc.title}". `;
+      
+      if (activeDoc.content.trim()) {
+        const contentLimit = aiConfig.fullContext ? activeDoc.content.length : 10000;
+        systemPrompt += `\nHere is the current content of this active document:\n\n---\n${activeDoc.content.substring(0, contentLimit)}\n---\n`;
+      }
+
+      const projectDocs = documents.filter(d => d.projectId === activeProjectId && d.id !== activeDocumentId);
+      if (projectDocs.length > 0) {
+        systemPrompt += `\n\n--- BACKGROUND PROJECT CONTEXT ---\nThe following are other documents and lore available in this project:\n`;
+        projectDocs.forEach(doc => {
+          if (doc.content.trim()) {
+            const contextLimit = aiConfig.fullContext ? doc.content.length : 8000;
+            systemPrompt += `\n[${doc.title} - ${doc.type}]\n${doc.content.substring(0, contextLimit)}\n`;
+          }
+        });
+        systemPrompt += `\n--- END BACKGROUND CONTEXT ---\n`;
+      }
+
+      const activeEndpoint = aiConfig.provider === 'custom' 
+        ? aiConfig.customEndpoints?.find(e => e.id === aiConfig.activeCustomEndpointId)
+        : undefined;
+
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: aiConfig.provider,
+          model: aiConfig.model,
+          temperature: aiConfig.temperature,
+          systemPrompt,
+          prompt: userMessage,
+          customEndpoint: activeEndpoint?.url,
+          customApiKey: aiConfig.provider === 'custom' ? activeEndpoint?.apiKey : aiConfig.apiKeys?.[aiConfig.provider],
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      const separator = activeDoc.content.trim() ? "\n\n" : "";
+      const newContent = activeDoc.content + separator + data.text;
+      
+      setContent(newContent);
+      lastSavedContentRef.current = newContent;
+      updateDocument(activeDoc.id, { content: newContent });
+      
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+        }
+      }, 100);
+
+    } catch (err: any) {
+      console.error(err);
+      alert(`Error: ${err.message || 'Failed to generate response.'}`);
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const handleNextMatch = () => {
@@ -387,6 +488,40 @@ export function Editor() {
             className="w-full h-[500px] min-h-full bg-transparent border-none outline-none resize-none text-lg leading-relaxed font-serif text-gray-300 placeholder-[#2D3139]"
           />
         </div>
+      </div>
+
+      {/* Floating AI Prompt Bar */}
+      <div className="absolute bottom-6 left-0 right-0 flex justify-center pointer-events-none px-4 z-20">
+        <form 
+          onSubmit={handleAiSubmit} 
+          className="w-full max-w-2xl bg-[#1A1D26]/90 backdrop-blur-md border border-[#2D3139] rounded-2xl shadow-2xl p-2 flex items-end gap-2 pointer-events-auto transition-all focus-within:border-[#D4AF37]/50 focus-within:shadow-[0_0_15px_rgba(212,175,55,0.1)]"
+        >
+          <textarea
+            value={aiInput}
+            onChange={(e) => {
+              setAiInput(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = (e.target.scrollHeight) + 'px';
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleAiSubmit(e);
+              }
+            }}
+            placeholder="Ask AI to brainstorm, expand, or rewrite..."
+            className="flex-1 max-h-32 bg-transparent border-none outline-none resize-none text-sm text-gray-200 placeholder-gray-500 py-2 px-3 custom-scrollbar self-center"
+            rows={1}
+            style={{ minHeight: '36px' }}
+          />
+          <button 
+            type="submit" 
+            disabled={!aiInput.trim() || isAiLoading}
+            className="p-2 bg-[#D4AF37] hover:bg-[#E5C35D] disabled:opacity-50 text-black rounded-xl transition-all self-end mb-0.5 shadow-[0_0_10px_rgba(212,175,55,0.2)]"
+          >
+            {isAiLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+          </button>
+        </form>
       </div>
 
       {/* Footer / Status bar */}
