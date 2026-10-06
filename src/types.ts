@@ -3,11 +3,17 @@ export interface Project {
   userId: string;
   title: string;
   customAuthors?: string[];
+  /** Target length of the finished manuscript, in words. */
+  wordGoal?: number;
+  /** Words the author aims to write per day. */
+  dailyGoal?: number;
   createdAt: any;
   updatedAt: any;
 }
 
 export type DocumentType = 'chapter' | 'scene' | 'character' | 'lore' | 'notes' | 'snippet';
+
+export type DocumentStatus = 'outline' | 'draft' | 'revised' | 'final';
 
 export interface DocumentVersion {
   id: string;
@@ -26,6 +32,11 @@ export interface Document {
   tags: string[];
   imageUrl?: string;
   versions?: DocumentVersion[];
+  /** Position within its type group. Lower comes first. */
+  order?: number;
+  status?: DocumentStatus;
+  /** One- or two-line summary, used on the corkboard and as AI context. */
+  synopsis?: string;
   createdAt: any;
   updatedAt: any;
 }
@@ -49,9 +60,44 @@ export interface AIConfig {
   fullContext?: boolean;
 }
 
+export type EditorFont = 'serif' | 'sans' | 'mono';
+export type EditorWidth = 'narrow' | 'medium' | 'wide';
+
+export interface EditorPrefs {
+  font: EditorFont;
+  fontSize: number;
+  lineHeight: number;
+  width: EditorWidth;
+}
+
+export const DEFAULT_EDITOR_PREFS: EditorPrefs = {
+  font: 'serif',
+  fontSize: 20,
+  lineHeight: 1.75,
+  width: 'medium',
+};
+
+export const DOCUMENT_TYPES: { id: DocumentType; label: string; plural: string }[] = [
+  { id: 'chapter', label: 'Chapter', plural: 'Chapters' },
+  { id: 'scene', label: 'Scene', plural: 'Scenes' },
+  { id: 'character', label: 'Character', plural: 'Characters' },
+  { id: 'lore', label: 'Lore', plural: 'World & Lore' },
+  { id: 'notes', label: 'Note', plural: 'Notes' },
+  { id: 'snippet', label: 'Snippet', plural: 'Snippets' },
+];
+
+export const DOCUMENT_STATUSES: { id: DocumentStatus; label: string; color: string }[] = [
+  { id: 'outline', label: 'Outline', color: '#8b8fa3' },
+  { id: 'draft', label: 'Draft', color: '#d9a23a' },
+  { id: 'revised', label: 'Revised', color: '#5b9bd5' },
+  { id: 'final', label: 'Final', color: '#5fb57a' },
+];
+
+export const MANUSCRIPT_TYPES: DocumentType[] = ['chapter', 'scene'];
+
 export const PROVIDERS = [
-  { id: 'gemini', name: 'Google Gemini', models: ['gemini-3.1-pro-preview', 'gemini-1.5-pro', 'gemini-1.5-flash'] },
-  { id: 'anthropic', name: 'Anthropic Claude', models: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'] },
+  { id: 'gemini', name: 'Google Gemini', models: ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'] },
+  { id: 'anthropic', name: 'Anthropic Claude', models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'] },
   { id: 'openai', name: 'OpenAI', models: ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
   { id: 'openrouter', name: 'OpenRouter', models: ['meta-llama/llama-3-70b-instruct', 'mistralai/mixtral-8x7b-instruct'] },
   { id: 'nanogpt', name: 'NanoGPT', models: [] },

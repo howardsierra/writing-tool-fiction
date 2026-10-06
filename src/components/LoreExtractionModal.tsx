@@ -1,150 +1,145 @@
 import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
-import { X, Sparkles, Loader2, Check } from 'lucide-react';
+import { useUI } from '../hooks/useUI';
+import { Sparkles, Loader2, Check, Users, Globe2 } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
 import { Document } from '../types';
+import { generateText, parseJsonArray } from '../utils/ai';
+import { Modal, Button } from './ui';
 
-export function LoreExtractionModal({ document, onClose }: { document: Document, onClose: () => void }) {
-  const { createDocument, aiConfig } = useStore();
+interface Entity {
+  name: string;
+  type: 'character' | 'lore';
+  description: string;
+  selected: boolean;
+}
+
+export function LoreExtractionModal({ document, onClose }: { document: Document; onClose: () => void }) {
+  const { createDocument, aiConfig, documents } = useStore();
+  const { toast } = useUI();
   const [isExtracting, setIsExtracting] = useState(false);
-  const [extractedEntities, setExtractedEntities] = useState<{name: string, type: 'character'|'lore', description: string}[]>([]);
-  const [hasExtracted, setHasExtracted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [entities, setEntities] = useState<Entity[] | null>(null);
+
+  const existing = documents.filter(d => d.type === 'character' || d.type === 'lore');
 
   const handleExtract = async () => {
+    if (!document.content.trim()) {
+      toast('This document is empty — write something first.', 'info');
+      return;
+    }
     setIsExtracting(true);
     try {
-      const activeEndpoint = aiConfig.provider === 'custom' 
-        ? aiConfig.customEndpoints?.find(e => e.id === aiConfig.activeCustomEndpointId)
-        : undefined;
-
-      const systemPrompt = `You are an expert story editor. Read the following chapter and extract any NEW characters, locations, items, or important concepts. 
-Format your response as a strict JSON array of objects. Each object must have exactly these keys: 
-"name" (string), "type" (must be exactly "character" or "lore"), and "description" (a detailed summary based on the text). 
-If there is nothing new, return an empty array []. Output strictly valid JSON.`;
-
-      const prompt = `Text to analyze:\n\n${document.content}`;
-
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: aiConfig.provider,
-          model: aiConfig.model,
-          temperature: 0.3,
-          systemPrompt,
-          prompt,
-          customEndpoint: activeEndpoint?.url,
-          customApiKey: aiConfig.provider === 'custom' ? activeEndpoint?.apiKey : aiConfig.apiKeys?.[aiConfig.provider],
-        })
-      });
-
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      // Try to parse JSON from the response text
-      let text = data.text;
-      // Strip markdown code blocks if present
-      text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-      
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) {
-        setExtractedEntities(parsed);
-      } else {
-        throw new Error("Invalid response format");
-      }
-      setHasExtracted(true);
+      const known = existing.map(d => `${d.title} (${d.type})`).join(', ') || 'none';
+      const systemPrompt = `You are a meticulous story editor building a series bible. Extract characters, places, factions, objects and important concepts that appear in the text.
+Skip anything already documented. Already documented: ${known}.
+Respond with ONLY a JSON array. Each item: {"name": string, "type": "character" | "lore", "description": string}.
+Descriptions should be 2–5 sentences covering appearance, role, relationships and any facts established in the text. Return [] if nothing new.`;
+      const text = await generateText(aiConfig, { systemPrompt, prompt: `TEXT:\n\n${document.content}`, temperature: 0.2 });
+      const parsed = parseJsonArray<any>(text)
+        .filter(e => e && typeof e.name === 'string' && e.name.trim())
+        .map(e => ({
+          name: String(e.name).trim().slice(0, 200),
+          type: (e.type === 'character' ? 'character' : 'lore') as Entity['type'],
+          description: String(e.description || '').trim(),
+          selected: true,
+        }));
+      setEntities(parsed);
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'Error extracting lore');
+      toast(err.message || 'Extraction failed.', 'error');
+    } finally {
+      setIsExtracting(false);
     }
-    setIsExtracting(false);
   };
 
-  const handleSaveToProject = () => {
-    extractedEntities.forEach(entity => {
-      createDocument(entity.name, entity.type, entity.description, ['auto-extracted']);
-    });
+  const update = (i: number, patch: Partial<Entity>) =>
+    setEntities(list => list!.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
+
+  const selected = entities?.filter(e => e.selected) || [];
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    for (const e of selected) {
+      await createDocument(e.name, e.type, e.description, { activate: false, tags: ['auto-extracted'] });
+    }
+    setIsSaving(false);
+    toast(`Added ${selected.length} entr${selected.length === 1 ? 'y' : 'ies'} to your bible`, 'success');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#11141B] border border-[#2D3139] rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between p-4 border-b border-[#2D3139] bg-[#0A0C10] flex-shrink-0">
-          <h2 className="text-sm font-serif italic text-white flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            Extract Lore & Characters
-          </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        
-        <div className="p-6 flex-1 overflow-y-auto">
-          {!hasExtracted && !isExtracting && (
-            <div className="text-center">
-              <p className="text-sm text-gray-400 mb-6">
-                Scan "{document.title}" for new characters, locations, or items. The AI will automatically generate encyclopedia entries for them.
-              </p>
-              <button 
-                onClick={handleExtract}
-                className="px-6 py-2 bg-[#D4AF37] text-black text-xs uppercase tracking-widest font-bold rounded hover:bg-[#F3E5AB] transition-colors inline-flex items-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                Start Extraction
-              </button>
-            </div>
-          )}
-
-          {isExtracting && (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
-              <p className="text-xs uppercase tracking-widest text-gray-400 animate-pulse">Analyzing text...</p>
-            </div>
-          )}
-
-          {hasExtracted && !isExtracting && (
-            <div className="space-y-4">
-              <h3 className="text-xs uppercase tracking-widest text-[#D4AF37]">Found {extractedEntities.length} Entities</h3>
-              
-              {extractedEntities.length === 0 ? (
-                <p className="text-sm text-gray-500">No new significant entities found in this text.</p>
-              ) : (
-                <div className="space-y-3">
-                  {extractedEntities.map((entity, i) => (
-                    <div key={i} className="p-3 bg-[#1A1D26] border border-[#2D3139] rounded">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-bold text-white">{entity.name}</span>
-                        <span className="text-[10px] uppercase tracking-widest text-gray-500 px-2 py-0.5 border border-[#2D3139] rounded-full">
-                          {entity.type}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-400 line-clamp-2">{entity.description}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {hasExtracted && extractedEntities.length > 0 && (
-          <div className="p-4 bg-[#0A0C10] border-t border-[#2D3139] flex justify-end gap-3 flex-shrink-0">
-            <button 
-              onClick={onClose}
-              className="px-4 py-2 text-xs uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleSaveToProject}
-              className="px-4 py-2 bg-[#D4AF37] text-black text-xs uppercase tracking-widest font-bold rounded hover:bg-[#F3E5AB] transition-colors inline-flex items-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              Save to Project
-            </button>
+    <Modal
+      title="Extract characters & lore"
+      icon={<Sparkles className="w-4 h-4" />}
+      onClose={onClose}
+      size="lg"
+      footer={entities && entities.length > 0 ? (
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleSave} disabled={!selected.length || isSaving}>
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            Add {selected.length} to project
+          </Button>
+        </>
+      ) : undefined}
+    >
+      {!entities && !isExtracting && (
+        <div className="text-center py-6">
+          <div className="w-12 h-12 rounded-2xl bg-accent-soft text-accent flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-5 h-5" />
           </div>
-        )}
-      </div>
-    </div>
+          <p className="text-sm text-fg-muted max-w-sm mx-auto leading-relaxed mb-6">
+            Scan “{document.title}” for characters, places and concepts that aren’t in your project yet, and draft encyclopedia entries for them.
+          </p>
+          <Button variant="primary" onClick={handleExtract}>
+            <Sparkles className="w-4 h-4" /> Start extraction
+          </Button>
+        </div>
+      )}
+
+      {isExtracting && (
+        <div className="flex flex-col items-center justify-center py-14 gap-3">
+          <Loader2 className="w-7 h-7 text-accent animate-spin" />
+          <p className="text-sm shimmer-text font-medium">Reading your chapter…</p>
+        </div>
+      )}
+
+      {entities && !isExtracting && (
+        entities.length === 0 ? (
+          <p className="text-sm text-fg-muted text-center py-8">Nothing new found — your bible is up to date.</p>
+        ) : (
+          <div className="space-y-2.5">
+            <p className="text-xs text-fg-subtle mb-3">Review, edit and choose which entries to add.</p>
+            {entities.map((e, i) => (
+              <div key={i} className={twMerge('rounded-xl border p-3.5 transition-colors', e.selected ? 'border-accent/40 bg-accent-soft/40' : 'border-line opacity-60')}>
+                <div className="flex items-center gap-2.5">
+                  <input type="checkbox" checked={e.selected} onChange={ev => update(i, { selected: ev.target.checked })} className="w-4 h-4 accent-[var(--accent)]" />
+                  <input
+                    value={e.name}
+                    onChange={ev => update(i, { name: ev.target.value })}
+                    className="flex-1 min-w-0 bg-transparent outline-none text-sm font-semibold text-fg"
+                  />
+                  <button
+                    onClick={() => update(i, { type: e.type === 'character' ? 'lore' : 'character' })}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-hover text-[11px] text-fg-muted hover:text-fg"
+                    title="Toggle type"
+                  >
+                    {e.type === 'character' ? <Users className="w-3 h-3" /> : <Globe2 className="w-3 h-3" />}
+                    {e.type === 'character' ? 'Character' : 'Lore'}
+                  </button>
+                </div>
+                <textarea
+                  value={e.description}
+                  onChange={ev => update(i, { description: ev.target.value })}
+                  rows={3}
+                  className="mt-2 w-full bg-transparent outline-none resize-y text-[13px] leading-relaxed text-fg-muted"
+                />
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </Modal>
   );
 }

@@ -1,8 +1,10 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, addDoc, query, where, orderBy, serverTimestamp } from "firebase/firestore";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
 
-// Automatically loaded from firebase-applet-config.json
+import { initializeApp } from "firebase/app";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
+import { getAuth, signInWithPopup, signOut as firebaseSignOut, GoogleAuthProvider } from "firebase/auth";
+
+// Firebase web config. These values are public identifiers, not secrets —
+// access is controlled by firestore.rules and Firebase Auth.
 const firebaseConfig = {
   projectId: "silly-464018",
   appId: "1:758827907059:web:09504bb48db004e73f0486",
@@ -16,18 +18,26 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-// Enable offline persistence for robust syncing
-try {
-  enableMultiTabIndexedDbPersistence(db);
-} catch (err) {
-  console.warn("Failed to enable offline persistence", err);
+// Offline persistence (shared across tabs) so drafts survive flaky connections.
+// Falls back to an in-memory cache where IndexedDB is unavailable (e.g. private mode).
+function createDb() {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    }, firebaseConfig.firestoreDatabaseId);
+  } catch (err) {
+    console.warn("Failed to enable offline persistence", err);
+    return initializeFirestore(app, { localCache: memoryLocalCache() }, firebaseConfig.firestoreDatabaseId);
+  }
 }
+const db = createDb();
 
 const signInWithGoogle = () => {
   const provider = new GoogleAuthProvider();
   return signInWithPopup(auth, provider);
 };
 
-export { auth, db, signInWithGoogle };
+const signOut = () => firebaseSignOut(auth);
+
+export { auth, db, signInWithGoogle, signOut };

@@ -1,90 +1,78 @@
 import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
-import { X, GitMerge } from 'lucide-react';
+import { useUI } from '../hooks/useUI';
+import { GitMerge, Loader2 } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
 import { Document } from '../types';
+import { Modal, Button } from './ui';
+import { countWords, formatNumber } from '../utils/text';
+import { MAX_CONTENT_LENGTH } from '../utils/importFile';
 
-export function MergeDocumentModal({ document, onClose }: { document: Document, onClose: () => void }) {
-  const { documents, updateDocument, deleteDocument } = useStore();
-  const [selectedDocId, setSelectedDocId] = useState<string>('');
+export function MergeDocumentModal({ document, onClose }: { document: Document; onClose: () => void }) {
+  const { documents, updateDocument, deleteDocument, saveVersion } = useStore();
+  const { toast } = useUI();
+  const [selectedDocId, setSelectedDocId] = useState('');
+  const [isMerging, setIsMerging] = useState(false);
 
-  // Only show documents of the same type, in the same project, excluding the current document.
-  const mergeableDocs = documents.filter(d => 
-    d.projectId === document.projectId && 
-    d.type === document.type && 
-    d.id !== document.id
-  );
+  const mergeableDocs = documents.filter(d => d.type === document.type && d.id !== document.id);
+  const selected = mergeableDocs.find(d => d.id === selectedDocId);
+  const separator = document.content.trim() && selected?.content.trim() ? '\n\n* * *\n\n' : '';
+  const mergedLength = document.content.length + separator.length + (selected?.content.length || 0);
+  const tooLong = mergedLength > MAX_CONTENT_LENGTH;
 
   const handleMerge = async () => {
-    if (!selectedDocId) return;
-    const docToMerge = documents.find(d => d.id === selectedDocId);
-    if (!docToMerge) return;
-
-    // Merge content
-    const separator = document.content.trim() && docToMerge.content.trim() ? '\n\n---\n\n' : '';
-    const newContent = `${document.content}${separator}${docToMerge.content}`;
-    
-    // Merge tags
-    const newTags = Array.from(new Set([...(document.tags || []), ...(docToMerge.tags || [])]));
-
-    await updateDocument(document.id, { 
-      content: newContent,
-      tags: newTags
+    if (!selected || tooLong) return;
+    setIsMerging(true);
+    await saveVersion(document.id, document.content, `Before merging “${selected.title}”`.slice(0, 200));
+    await updateDocument(document.id, {
+      content: `${document.content}${separator}${selected.content}`,
+      tags: Array.from(new Set([...(document.tags || []), ...(selected.tags || [])])).slice(0, 20),
     });
-    await deleteDocument(docToMerge.id);
+    await deleteDocument(selected.id);
+    toast(`Merged “${selected.title}”`, 'success');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-[#11141B] border border-[#2D3139] rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-[#2D3139]">
-          <h2 className="text-lg font-serif italic text-white flex items-center gap-2">
-            <GitMerge className="w-5 h-5 text-[#D4AF37]" />
-            Merge Document
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="p-4 space-y-4 text-sm text-gray-300">
-          <p>
-            Select another <strong>{document.type}</strong> to merge into <strong>{document.title}</strong>. 
-            The selected document will be permanently deleted after its content is appended here.
-          </p>
-          
-          {mergeableDocs.length === 0 ? (
-            <div className="p-4 bg-[#1A1D26] rounded text-center text-gray-500">
-              No other {document.type}s available to merge.
-            </div>
-          ) : (
-            <select
-              value={selectedDocId}
-              onChange={(e) => setSelectedDocId(e.target.value)}
-              className="w-full bg-[#1A1D26] border border-[#2D3139] rounded px-3 py-2 text-white outline-none focus:border-[#D4AF37]"
-            >
-              <option value="">Select a document to merge...</option>
-              {mergeableDocs.map(d => (
-                <option key={d.id} value={d.id}>{d.title}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        
-        <div className="p-4 border-t border-[#2D3139] flex justify-end gap-3 bg-[#0A0C10]">
-          <button onClick={onClose} className="px-4 py-2 text-xs uppercase tracking-widest text-gray-400 hover:text-white transition-colors">
-            Cancel
-          </button>
-          <button 
-            onClick={handleMerge}
-            disabled={!selectedDocId}
-            className="px-4 py-2 bg-[#D4AF37] text-black text-xs uppercase tracking-widest font-bold rounded hover:bg-[#E5C35D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            <GitMerge className="w-4 h-4" />
+    <Modal
+      title="Merge documents"
+      icon={<GitMerge className="w-4 h-4" />}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleMerge} disabled={!selected || tooLong || isMerging}>
+            {isMerging ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
             Merge
-          </button>
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-fg-muted leading-relaxed mb-4">
+        Append another {document.type} to the end of <strong className="text-fg">{document.title}</strong>. The other document is deleted afterwards; a snapshot of this one is saved first.
+      </p>
+      {mergeableDocs.length === 0 ? (
+        <div className="p-6 rounded-xl bg-sunken text-center text-sm text-fg-subtle">No other {document.type}s to merge.</div>
+      ) : (
+        <div className="space-y-1.5 max-h-72 overflow-y-auto">
+          {mergeableDocs.map(d => (
+            <button
+              key={d.id}
+              onClick={() => setSelectedDocId(d.id)}
+              className={twMerge(
+                'w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border text-left transition-colors',
+                selectedDocId === d.id ? 'border-accent bg-accent-soft' : 'border-line hover:bg-hover'
+              )}
+            >
+              <span className="text-sm text-fg truncate">{d.title}</span>
+              <span className="text-xs text-fg-subtle tabular-nums flex-shrink-0">{formatNumber(countWords(d.content))} words</span>
+            </button>
+          ))}
         </div>
-      </div>
-    </div>
+      )}
+      {tooLong && (
+        <p className="mt-3 text-xs text-danger">The merged text would exceed the 100,000-character document limit.</p>
+      )}
+    </Modal>
   );
 }
