@@ -348,10 +348,12 @@ export function Editor({
   };
 
   const handleGenerateImage = async (prompt: string, referenceImage: string | null, provider: string, model: string) => {
+    // Shrink the reference so the request stays under serverless body limits (~4.5 MB on Vercel).
+    const reference = referenceImage ? await compressImage(referenceImage, 1024, 0.85) : null;
     const res = await fetch('/api/generate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, model, prompt, referenceImage, customApiKey: aiConfig.apiKeys?.[provider] }),
+      body: JSON.stringify({ provider, model, prompt, referenceImage: reference, customApiKey: aiConfig.apiKeys?.[provider] }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.imageUrl) throw new Error(data.error || 'Failed to generate image');
