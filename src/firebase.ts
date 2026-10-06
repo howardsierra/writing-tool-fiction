@@ -3,7 +3,8 @@ import { initializeApp } from "firebase/app";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
 import { getAuth, signInWithPopup, signOut as firebaseSignOut, GoogleAuthProvider } from "firebase/auth";
 
-// Automatically loaded from firebase-applet-config.json
+// Firebase web config. These values are public identifiers, not secrets —
+// access is controlled by firestore.rules and Firebase Auth.
 const firebaseConfig = {
   projectId: "silly-464018",
   appId: "1:758827907059:web:09504bb48db004e73f0486",
