@@ -3,7 +3,7 @@ import { useStore } from '../hooks/useStore';
 import { useUI } from '../hooks/useUI';
 import {
   BookOpen, FileText, Users, Globe2, StickyNote, Scissors, Plus, Settings, Sun, Moon, ChevronDown, ChevronRight,
-  Upload, Download, X, Search, LayoutGrid, MoreHorizontal, Copy, Trash2, Check, FolderPlus, SlidersHorizontal, LogOut, Feather, Command,
+  Upload, Download, FolderInput, X, Search, LayoutGrid, MoreHorizontal, Copy, Trash2, Check, FolderPlus, SlidersHorizontal, LogOut, Feather, Command,
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { DOCUMENT_TYPES, DOCUMENT_STATUSES, DocumentType, Document } from '../types';
@@ -38,11 +38,12 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenProjectSettings: () => void;
   onOpenExport: () => void;
+  onOpenImport: () => void;
   onOpenPalette: () => void;
   onCloseSidebar?: () => void;
 }
 
-export function Sidebar({ onOpenSettings, onOpenProjectSettings, onOpenExport, onOpenPalette, onCloseSidebar }: SidebarProps) {
+export function Sidebar({ onOpenSettings, onOpenProjectSettings, onOpenExport, onOpenImport, onOpenPalette, onCloseSidebar }: SidebarProps) {
   const {
     user, projects, activeProject, activeProjectId, setActiveProjectId, createProject,
     documents, activeDocumentId, setActiveDocumentId, createDocument, duplicateDocument, deleteDocument, reorderDocuments,
@@ -237,6 +238,7 @@ export function Sidebar({ onOpenSettings, onOpenProjectSettings, onOpenExport, o
                   <FolderPlus className="w-3.5 h-3.5" />
                 </button>
               </form>
+              <MenuItem icon={<FolderInput className="w-4 h-4" />} onClick={() => { close(); onOpenImport(); }}>Import project…</MenuItem>
               {activeProject && (
                 <>
                   <MenuDivider />

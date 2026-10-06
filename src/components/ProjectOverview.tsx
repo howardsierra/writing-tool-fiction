@@ -8,7 +8,7 @@ import { countWords, formatNumber, readingMinutes, relativeTime, toMillis } from
 import { TYPE_ICONS, nextDocumentTitle } from './Sidebar';
 import { IconButton, ProgressRing, SectionLabel, Button, inputClass, modKey } from './ui';
 
-export function ProjectOverview({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
+export function ProjectOverview({ onOpenSidebar, onOpenImport }: { onOpenSidebar?: () => void; onOpenImport?: () => void }) {
   const { projects, activeProject, activeProjectId, documents, setActiveDocumentId, createDocument, reorderDocuments, createProject } = useStore();
   const stats = useWritingStats(activeProjectId);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -70,6 +70,11 @@ export function ProjectOverview({ onOpenSidebar }: { onOpenSidebar?: () => void 
               <FolderPlus className="w-4 h-4" /> Create
             </Button>
           </form>
+          {onOpenImport && (
+            <button onClick={onOpenImport} className="mt-5 text-sm text-fg-muted hover:text-accent transition-colors">
+              or <span className="underline underline-offset-4">import an exported project</span>
+            </button>
+          )}
         </div>
       </div>
     );

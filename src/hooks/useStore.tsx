@@ -4,6 +4,7 @@ import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc
 import { Project, Document, AIConfig, EditorPrefs, DEFAULT_EDITOR_PREFS, DocumentType, DOCUMENT_TYPES } from '../types';
 import { useUI } from './useUI';
 import { toMillis } from '../utils/text';
+import type { ImportedProject } from '../utils/importProject';
 
 const MAX_VERSIONS = 30;
 
@@ -28,6 +29,7 @@ interface StoreContextType {
   createProject: (title: string) => Promise<void>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  importProject: (data: ImportedProject, onProgress?: (done: number, total: number) => void) => Promise<string | null>;
   createDocument: (title: string, type: DocumentType, initialContent?: string, options?: CreateDocumentOptions) => Promise<string | null>;
   updateDocument: (id: string, updates: Partial<Document>) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
@@ -237,6 +239,102 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (activeProjectId === id) setActiveProjectId(null);
   };
 
+  const importProject = async (data: ImportedProject, onProgress?: (done: number, total: number) => void) => {
+    if (!user) return null;
+    setPendingWrites(n => n + 1);
+    try {
+      const cleanInt = (n?: number) => (n && Number.isFinite(n) && n > 0 ? Math.min(10_000_000, Math.round(n)) : 0);
+      const projectData: Record<string, unknown> = {
+        userId: user.uid,
+        title: (data.title.trim() || 'Imported project').slice(0, 100),
+        customAuthors: (data.customAuthors || []).map(a => a.trim().slice(0, 50)).filter(Boolean).slice(0, 100),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      if (cleanInt(data.wordGoal)) projectData.wordGoal = cleanInt(data.wordGoal);
+      if (cleanInt(data.dailyGoal)) projectData.dailyGoal = cleanInt(data.dailyGoal);
+      // The project must exist before its documents: the rules check for it.
+      const projectRef = await addDoc(collection(db, 'projects'), projectData);
+
+      // Split anything over the 100k-character document limit into parts.
+      const docs = data.documents.flatMap(d => {
+        if (d.content.length <= 100_000) return [d];
+        const parts: string[] = [];
+        let current = '';
+        for (const para of d.content.split(/\n{2,}/)) {
+          if (current && (current + para).length > 99_000) { parts.push(current); current = ''; }
+          current += (current ? '\n\n' : '') + para;
+        }
+        if (current) parts.push(current);
+        return parts.flatMap(p => (p.length > 100_000 ? p.match(/[\s\S]{1,100000}/g)! : [p]))
+          .map((content, i) => ({ ...d, content, title: `${d.title} (part ${i + 1})`, versions: undefined }));
+      });
+
+      const orderByType: Record<string, number> = {};
+      const pendingVersions: { ref: ReturnType<typeof doc>; versions: NonNullable<ImportedProject['documents'][number]['versions']> }[] = [];
+      let batch = writeBatch(db);
+      let ops = 0;
+      let bytes = 0;
+      let done = 0;
+      const commit = async () => {
+        if (!ops) return;
+        await batch.commit();
+        done += ops;
+        onProgress?.(done, docs.length);
+        batch = writeBatch(db);
+        ops = 0;
+        bytes = 0;
+      };
+
+      for (const d of docs) {
+        const ref = doc(collection(db, 'documents'));
+        const order = (orderByType[d.type] = (orderByType[d.type] || 0) + 1);
+        const tags = Array.from(new Set((d.tags || []).map(t => t.trim().slice(0, 50)).filter(Boolean))).slice(0, 20);
+        const docData: Record<string, unknown> = {
+          userId: user.uid,
+          projectId: projectRef.id,
+          title: (d.title || 'Untitled').slice(0, 200),
+          type: d.type,
+          content: d.content,
+          tags,
+          order,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        if (d.status) docData.status = d.status;
+        else if (d.type === 'chapter' || d.type === 'scene') docData.status = 'draft';
+        if (d.synopsis) docData.synopsis = d.synopsis.slice(0, 2000);
+        batch.set(ref, docData);
+        ops++;
+        bytes += d.content.length + 500;
+        if (d.versions?.length) pendingVersions.push({ ref, versions: d.versions });
+        // Stay well under Firestore's 500-write / 10 MiB batch limits.
+        if (ops >= 400 || bytes > 4_000_000) await commit();
+      }
+      await commit();
+
+      // Version history is restored afterwards (the rules don't allow it on create).
+      for (const { ref, versions: all } of pendingVersions) {
+        const source = docs.find(d => d.versions === all)!;
+        let versions = all.slice(-MAX_VERSIONS);
+        const size = (list: typeof versions) => list.reduce((sum, v) => sum + v.content.length * 1.1 + 120, 0);
+        while (versions.length && source.content.length + size(versions) > 850_000) versions = versions.slice(1);
+        if (versions.length) await updateDoc(ref, { versions, updatedAt: serverTimestamp() });
+      }
+
+      setLastWriteFailed(false);
+      setHasSaved(true);
+      setActiveProjectId(projectRef.id);
+      return projectRef.id;
+    } catch (error) {
+      setLastWriteFailed(true);
+      reportError('import the project', error);
+      return null;
+    } finally {
+      setPendingWrites(n => Math.max(0, n - 1));
+    }
+  };
+
   const createDocument = async (title: string, type: DocumentType, initialContent = '', options: CreateDocumentOptions = {}) => {
     if (!user || !activeProjectId) return null;
     const { activate = true, tags = [], synopsis } = options;
@@ -341,7 +439,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     <StoreContext.Provider value={{
       user, authLoading, projects, activeProject, activeProjectId, setActiveProjectId,
       documents, activeDocumentId, setActiveDocumentId,
-      createProject, updateProject, deleteProject,
+      createProject, updateProject, deleteProject, importProject,
       createDocument, updateDocument, deleteDocument, duplicateDocument, reorderDocuments,
       saveVersion, deleteVersion, saveStatus, lastCreatedId,
       aiConfig, setAIConfig, editorPrefs, setEditorPrefs,

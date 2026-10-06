@@ -15,11 +15,12 @@ import { signInWithGoogle } from './firebase';
 const Editor = lazy(() => import('./components/Editor').then(m => ({ default: m.Editor })));
 const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
 const ProjectSettingsModal = lazy(() => import('./components/ProjectSettingsModal').then(m => ({ default: m.ProjectSettingsModal })));
+const ImportProjectModal = lazy(() => import('./components/ImportProjectModal').then(m => ({ default: m.ImportProjectModal })));
 const ExportModal = lazy(() => import('./components/ExportModal').then(m => ({ default: m.ExportModal })));
 const loadPalette = () => import('./components/CommandPalette');
 const CommandPalette = lazy(() => loadPalette().then(m => ({ default: m.CommandPalette })));
 
-type Overlay = 'settings' | 'project' | 'export' | 'palette' | null;
+type Overlay = 'settings' | 'project' | 'export' | 'import' | 'palette' | null;
 
 function SignIn() {
   const { toast } = useUI();
@@ -139,6 +140,7 @@ function AppContent() {
           onOpenSettings={() => open('settings')}
           onOpenProjectSettings={() => open('project')}
           onOpenExport={() => open('export')}
+          onOpenImport={() => open('import')}
           onOpenPalette={() => open('palette')}
           onCloseSidebar={() => setIsSidebarOpen(false)}
         />
@@ -160,7 +162,7 @@ function AppContent() {
             />
           </Suspense>
         ) : (
-          <ProjectOverview onOpenSidebar={() => setIsSidebarOpen(true)} />
+          <ProjectOverview onOpenSidebar={() => setIsSidebarOpen(true)} onOpenImport={() => open('import')} />
         )}
       </main>
 
@@ -168,11 +170,13 @@ function AppContent() {
         {overlay === 'settings' && <SettingsModal onClose={() => setOverlay(null)} />}
         {overlay === 'project' && <ProjectSettingsModal onClose={() => setOverlay(null)} />}
         {overlay === 'export' && <ExportModal onClose={() => setOverlay(null)} />}
+        {overlay === 'import' && <ImportProjectModal onClose={() => setOverlay(null)} />}
         {overlay === 'palette' && (
           <CommandPalette
             onClose={() => setOverlay(null)}
             onOpenSettings={() => setOverlay('settings')}
             onOpenExport={() => setOverlay('export')}
+            onOpenImport={() => setOverlay('import')}
             onOpenProjectSettings={() => setOverlay('project')}
           />
         )}

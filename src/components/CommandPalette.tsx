@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, LayoutGrid, Settings, Download, Sun, Moon, SlidersHorizontal, Plus, FolderOpen, CornerDownLeft } from 'lucide-react';
+import { Search, LayoutGrid, Settings, Download, Sun, Moon, SlidersHorizontal, Plus, FolderOpen, FolderInput, CornerDownLeft } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { useStore } from '../hooks/useStore';
 import { DOCUMENT_TYPES, DocumentType } from '../types';
@@ -34,11 +34,13 @@ export function CommandPalette({
   onClose,
   onOpenSettings,
   onOpenExport,
+  onOpenImport,
   onOpenProjectSettings,
 }: {
   onClose: () => void;
   onOpenSettings: () => void;
   onOpenExport: () => void;
+  onOpenImport: () => void;
   onOpenProjectSettings: () => void;
 }) {
   const { documents, projects, activeProjectId, setActiveProjectId, setActiveDocumentId, createDocument, isDarkMode, toggleDarkMode } = useStore();
@@ -73,6 +75,7 @@ export function CommandPalette({
         { id: 'export', group: 'Actions', label: 'Export manuscript…', icon: <Download className="w-4 h-4" />, run: onOpenExport },
         { id: 'project-settings', group: 'Actions', label: 'Project settings & goals…', icon: <SlidersHorizontal className="w-4 h-4" />, run: onOpenProjectSettings },
       ] : []),
+      { id: 'import', group: 'Actions', label: 'Import project…', icon: <FolderInput className="w-4 h-4" />, run: onOpenImport },
       { id: 'settings', group: 'Actions', label: 'AI & app settings…', icon: <Settings className="w-4 h-4" />, run: onOpenSettings },
       { id: 'theme', group: 'Actions', label: isDarkMode ? 'Switch to light theme' : 'Switch to dark theme', icon: isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />, run: toggleDarkMode },
       ...projects.filter(p => p.id !== activeProjectId).map(p => ({
