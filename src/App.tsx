@@ -19,7 +19,7 @@ function AppContent() {
 
   if (authLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-[#0A0C10] text-[#D4AF37]">
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-[#0A0C10] text-[#D4AF37]">
         <div className="text-[10px] uppercase tracking-[0.2em] animate-pulse">Initializing System...</div>
       </div>
     );
@@ -27,7 +27,7 @@ function AppContent() {
 
   if (!user) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-[#0A0C10] text-[#E0E0E0] p-4">
+      <div className="flex h-[100dvh] w-full flex-col items-center justify-center bg-[#0A0C10] text-[#E0E0E0] p-4">
         <div className="max-w-md w-full bg-[#11141B] border border-[#2D3139] p-8 rounded text-center shadow-2xl">
           <h1 className="text-xl italic text-white font-serif mb-2">The Author's Desk</h1>
           <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-8">Sign in to access your manuscripts</p>
@@ -43,7 +43,12 @@ function AppContent() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#0A0C10] text-[#E0E0E0] font-sans overflow-hidden relative">
+    <div className="flex h-[100dvh] w-full bg-[#0A0C10] text-[#E0E0E0] font-sans overflow-hidden relative" style={{ 
+        paddingLeft: 'env(safe-area-inset-left)', 
+        paddingRight: 'env(safe-area-inset-right)',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)'
+      }}>
       <div className={twMerge(
         "fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 md:relative md:translate-x-0 h-full",
         isSidebarOpen ? "translate-x-0" : "-translate-x-full"

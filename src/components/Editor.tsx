@@ -337,7 +337,7 @@ export function Editor({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
 
   return (
     <div className={twMerge(
-      "flex-1 flex flex-col bg-[#0A0C10] shadow-inner transition-all duration-300",
+      "flex-1 flex flex-col bg-[#0A0C10] shadow-inner transition-all duration-300 min-w-0 relative w-full",
       isFocusMode ? "fixed inset-0 z-50" : "relative"
     )}>
       {/* Editor Header */}
@@ -345,8 +345,8 @@ export function Editor({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
         "flex-shrink-0 flex flex-col gap-2 p-4 md:p-6 pb-2 border-b border-transparent transition-opacity duration-300 relative z-10",
         isFocusMode ? "opacity-0 hover:opacity-100 absolute top-0 left-0 right-0 bg-[#0A0C10]/90 backdrop-blur" : "opacity-100"
       )}>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-2 flex-1">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 w-full">
+          <div className="flex items-center gap-2 w-full md:flex-1 min-w-0">
             {onOpenSidebar && !isFocusMode && (
               <button 
                 onClick={onOpenSidebar}
@@ -363,7 +363,7 @@ export function Editor({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
               placeholder="Document Title"
             />
           </div>
-          <div className="flex items-center gap-1 md:gap-2 overflow-x-auto custom-scrollbar pb-1 flex-shrink-0">
+          <div className="flex items-center gap-1 md:gap-2 overflow-x-auto w-full md:w-auto pb-1 flex-shrink-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {supportsImage && (
               <button 
                 onClick={() => setShowImageModal(true)}
@@ -519,7 +519,7 @@ export function Editor({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
             </div>
           )}
           {isPreviewMode ? (
-            <div className="w-full h-[500px] min-h-full font-serif text-gray-300 prose prose-invert prose-lg max-w-none prose-p:leading-relaxed prose-headings:text-gray-200 prose-a:text-[#D4AF37] hover:prose-a:text-[#E5C35D]">
+            <div className="w-full h-[500px] min-h-full font-serif text-gray-300 prose prose-invert prose-lg max-w-none prose-p:leading-relaxed prose-headings:text-gray-200 prose-a:text-[#D4AF37] hover:prose-a:text-[#E5C35D] break-words prose-pre:overflow-x-auto">
               <ReactMarkdown 
                 rehypePlugins={[rehypeRaw]} 
                 remarkPlugins={[remarkGfm]}
