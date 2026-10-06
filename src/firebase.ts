@@ -1,6 +1,7 @@
+
 import { initializeApp } from "firebase/app";
-import { getFirestore, enableMultiTabIndexedDbPersistence, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, addDoc, query, where, orderBy, serverTimestamp } from "firebase/firestore";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
+import { getAuth, signInWithPopup, signOut as firebaseSignOut, GoogleAuthProvider } from "firebase/auth";
 
 // Automatically loaded from firebase-applet-config.json
 const firebaseConfig = {
@@ -16,18 +17,26 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-// Enable offline persistence for robust syncing
-try {
-  enableMultiTabIndexedDbPersistence(db);
-} catch (err) {
-  console.warn("Failed to enable offline persistence", err);
+// Offline persistence (shared across tabs) so drafts survive flaky connections.
+// Falls back to an in-memory cache where IndexedDB is unavailable (e.g. private mode).
+function createDb() {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    }, firebaseConfig.firestoreDatabaseId);
+  } catch (err) {
+    console.warn("Failed to enable offline persistence", err);
+    return initializeFirestore(app, { localCache: memoryLocalCache() }, firebaseConfig.firestoreDatabaseId);
+  }
 }
+const db = createDb();
 
 const signInWithGoogle = () => {
   const provider = new GoogleAuthProvider();
   return signInWithPopup(auth, provider);
 };
 
-export { auth, db, signInWithGoogle };
+const signOut = () => firebaseSignOut(auth);
+
+export { auth, db, signInWithGoogle, signOut };
